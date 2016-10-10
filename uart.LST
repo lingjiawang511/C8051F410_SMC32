@@ -1,0 +1,611 @@
+C51 COMPILER V9.52.0.0   UART                                                              10/10/2016 16:43:43 PAGE 1   
+
+
+C51 COMPILER V9.52.0.0, COMPILATION OF MODULE UART
+OBJECT MODULE PLACED IN uart.OBJ
+COMPILER INVOKED BY: C:\Keil\C51\BIN\C51.EXE uart.c BROWSE DEBUG OBJECTEXTEND TABS(2)
+
+line level    source
+
+   1          #include <C8051F410.h>                 // SFR declarations
+   2          #include <intrins.h>                 // SFR declarations
+   3          #include <zyy_declare.h>
+   4          
+   5          #define SYSCLK      24500000           // SYSCLK frequency in Hz
+   6          #define BAUDRATE        9600           // Baud rate of UART in bps
+   7          
+   8          //RS485 ·½Ïò¿ØÖÆ¶ËÑÓ³ÙÓÃ
+   9          void delay(uchar time)
+  10          {
+  11   1        while(time--);
+  12   1      }
+  13          
+  14          //LRCÐ£Ñé ×¢Òâ ²ÎÊýlength=Í¨ÐÅ½ÓÊÕµÄ¸öÊý-
+  15          unsigned int LRC16(unsigned char *Pushdata,unsigned char length)
+  16          {
+  17   1        unsigned char LRCHi=0;
+  18   1        unsigned char   LRCLo;
+  19   1      
+  20   1        while(length--) 
+  21   1        { 
+  22   2          LRCHi = LRCHi + *Pushdata++;
+  23   2        }
+  24   1      
+  25   1        LRCHi = ~LRCHi + 1;
+  26   1        LRCLo = AsciiCode[LRCHi & 0x0F];
+  27   1        LRCHi = LRCHi & 0xf0;
+  28   1        LRCHi = (LRCHi >> 4);
+  29   1        LRCHi = AsciiCode[LRCHi];
+  30   1      
+  31   1        return ((LRCHi<<8) | LRCLo); 
+  32   1      
+  33   1      }
+  34          //Í¨ÐÅÊ¹ÄÜLOCK
+  35          void enable_lock(void)
+  36          {
+  37   1        uint tmp;             //¼ÆËãÍ¨ÐÅµÄLRCÐ£ÑéÂë
+  38   1        uchar *ptr;           //Êý¾Ý½ÓÊÕÖ¸Õë
+  39   1      
+  40   1        ptr = &UART0.RevBuf[1];
+  41   1        tmp = LRC16(ptr,UART0.RxdCnt-4);    //¼ÆËãÍ¨ÐÅµÄLRCÐ£ÑéÂë
+  42   1        if ( tmp == ((LRC_H << 8) | LRC_L) )
+  43   1        {//LRCÐ£ÑéÕýÈ·
+  44   2          UART0.LOCK_ID   = Lock_ID;        //Í¨ÐÅÒªÇó´ò¿ªµÄµç´Å·§±àºÅ = »ñµÃÐèÒªÊ¹ÄÜµÄµç´Å·§±àºÅ Lock_ID:( (HexCode[UA
+             -RT0.RevBuf[3]] << 4) | HexCode[UART0.RevBuf[4]] )    //Í¨ÐÅÐ­Òé µç×ÓËø±àºÅ
+  45   2            
+  46   2          //´ð¸´Ö÷»ú  Óë·¢ËÍÄÚÈÝÏàÍ¬
+  47   2          for(tmp=0;tmp<9;tmp++)
+  48   2          {
+  49   3            UART0.TraBuf[tmp] = UART0.RevBuf[tmp];
+  50   3          }
+  51   2          RS485_TEN();                        //ÇÐ»»485Ð¾Æ¬Ä£Ê½Îª ·¢ËÍ
+  52   2          UART0.TxdCnt    = UART0.RxdCnt;   //ÉèÖÃ·¢ËÍ³¤¶È
+  53   2          UART0.TranData  = &UART0.TraBuf[1]; //³õÊ¼»¯Êý¾Ý·¢ËÍÖ¸Õë
+  54   2          SBUF0           = UART0.TraBuf[0];  //·¢ËÍµÚÒ»¸öÊý¾Ý
+C51 COMPILER V9.52.0.0   UART                                                              10/10/2016 16:43:43 PAGE 2   
+
+  55   2        }
+  56   1        else
+  57   1        {//LRCÐ£Ñé´íÎó
+  58   2          for(tmp=0;tmp<10;tmp++)
+  59   2          {
+  60   3            UART0.RevBuf[tmp] = 0;  //Çé¿öÍ¨ÐÅ½ÓÊÕ»º³åÇø
+  61   3          }
+  62   2          RS485_REN();    // ÇÐ»»Í¨Ñ¶Îª½ÓÊÜÄ£Ê½
+  63   2        }
+  64   1      }
+  65          
+  66          //Í¨ÐÅÊ¹ÄÜLed
+  67          void enable_led(void)
+  68          {
+  69   1        uint tmp;
+  70   1        uchar *ptr;
+  71   1      
+  72   1        ptr = &UART0.RevBuf[1];
+  73   1        tmp = LRC16(ptr,UART0.RxdCnt-4);    //¼ÆËãÍ¨ÐÅµÄLRCÐ£ÑéÂë
+  74   1        if ( tmp == ((LRC_H << 8) | LRC_L) )
+  75   1        {//LRCÐ£ÑéÕýÈ·
+  76   2          UART0.LED_ID  = Led_ID;     //»ñµÃÐèÒªÊ¹ÄÜµÄLED±àºÅ 
+  77   2          UART0.LED_STATE = Led_State;    //LEDÉÁË¸×´Ì¬ 
+  78   2      
+  79   2          if (UART0.LED_STATE == 1)
+  80   2          {//LEDÉÁË¸
+  81   3            LED_BLINK[(UART0.LED_ID-1)/8] |= 0x80 >> ((UART0.LED_ID-1)%8);  //Ê¹ÄÜÐèÒªÉÁË¸µÄLEDµÄbitÎ»
+  82   3            UART0.LED_Blink_Cnt   = Timer0Value + 20; //500ms
+  83   3            UART0.LED_Blink_state   = 0;        //³õÊ¼»¯ÉÁË¸×´Ì¬ÎªÃð
+  84   3          }
+  85   2          else if (UART0.LED_STATE == 0)
+  86   2          {
+  87   3            LED_BLINK[(UART0.LED_ID-1)/8] &= ~(0x80 >> ((UART0.LED_ID-1)%8)); //Ê§Ð§²»ÐèÉÁË¸µÄLEDµÄbitÎ»
+  88   3          }
+  89   2          else
+  90   2          {//Ï¨ÃðLED  led_state = 0xff
+  91   3            disable_led(UART0.LED_ID);    //Ï¨ÃðLED
+  92   3            LED_BLINK[(UART0.LED_ID-1)/8] &= ~(0x80 >> ((UART0.LED_ID-1)%8)); //Ê§Ð§²»ÐèÉÁË¸µÄLEDµÄbitÎ»
+  93   3            UART0.LED_ID = 0;
+  94   3          }
+  95   2      
+  96   2      //    if(UART0.LED_STATE)
+  97   2      //    {//LEDÐèÒªÉÁË¸  ³õÊ¼»¯LEDÉÁË¸¼ÆÊ±Æ÷
+  98   2      //      UART0.LED_Blink_Cnt   = Timer0Value + 20; //500ms
+  99   2      //      UART0.LED_Blink_state   = 0;        //³õÊ¼»¯ÉÁË¸×´Ì¬ÎªÃð
+ 100   2      //    }
+ 101   2          
+ 102   2          //´ð¸´Ö÷»ú  Óë·¢ËÍÄÚÈÝÏàÍ¬
+ 103   2          for(tmp=0;tmp<10;tmp++)
+ 104   2          {
+ 105   3            UART0.TraBuf[tmp] = UART0.RevBuf[tmp];
+ 106   3          }
+ 107   2          RS485_TEN();                //ÇÐ»»485Ð¾Æ¬Ä£Ê½Îª ·¢ËÍ
+ 108   2          UART0.TxdCnt  = UART0.RxdCnt;   //ÉèÖÃ·¢ËÍ³¤¶È
+ 109   2          UART0.TranData  = &UART0.TraBuf[1]; //³õÊ¼»¯Êý¾Ý·¢ËÍÖ¸Õë
+ 110   2          SBUF0       = UART0.TraBuf[0];  //·¢ËÍµÚÒ»¸öÊý¾Ý
+ 111   2        }
+ 112   1        else
+ 113   1        {//LRCÐ£Ñé´íÎó
+ 114   2          for(tmp=0;tmp<10;tmp++)
+ 115   2          {
+ 116   3            UART0.RevBuf[tmp] = 0;  //Çé¿öÍ¨ÐÅ»º³åÇø
+C51 COMPILER V9.52.0.0   UART                                                              10/10/2016 16:43:43 PAGE 3   
+
+ 117   3          }
+ 118   2          RS485_REN();    // ÇÐ»»Í¨Ñ¶Îª½ÓÊÜÄ£Ê½
+ 119   2        }
+ 120   1      }
+ 121          
+ 122          /******************************V2.15Ôö¼Ó²¿·Ö(ÒÔÏÂ)*********************************/
+ 123          //ÏÔÊ¾°æ±¾ºÅ
+ 124          void show_version(void)
+ 125          {
+ 126   1        uint tmp;             //¼ÆËãÍ¨ÐÅµÄLRCÐ£ÑéÂë±äÁ¿
+ 127   1        uchar *ptr;           //Êý¾Ý½ÓÊÕÖ¸Õë
+ 128   1      
+ 129   1        ptr = &UART0.RevBuf[1];
+ 130   1        tmp = LRC16(ptr,UART0.RxdCnt-4);    //¼ÆËãÍ¨ÐÅµÄLRCÐ£ÑéÂë
+ 131   1        if ( tmp == ((LRC_H << 8) | LRC_L) )
+ 132   1        {//LRCÐ£ÑéÕýÈ·      
+ 133   2          //´ð¸´Ö÷»ú  Óë·¢ËÍÄÚÈÝÏàÍ¬
+ 134   2          RS485_TEN();                        //ÇÐ»»485Ð¾Æ¬Ä£Ê½Îª ·¢ËÍ
+ 135   2          UART0.TxdCnt    = UART0.RxdCnt;   //ÉèÖÃ·¢ËÍ³¤¶È
+ 136   2          UART0.TranData  = &UART0.TraBuf[1]; //³õÊ¼»¯Êý¾Ý·¢ËÍÖ¸Õë
+ 137   2          SBUF0           = UART0.TraBuf[0];  //·¢ËÍµÚÒ»¸öÊý¾Ý
+ 138   2      
+ 139   2          UART0.TraBuf[0] = 0x40;     //Ê××Ö½Ú
+ 140   2          UART0.TraBuf[1] = 0x56;   //ÃüÁî×Ö'V'
+ 141   2          UART0.TraBuf[2] = 0x31;   //SLAVE_ID = 1
+ 142   2      
+ 143   2          UART0.TraBuf[3] = 0x31;     //°æ±¾ºÅ-H   °æ±¾ºÅ£º15 (¿É¸Ä±ä)
+ 144   2          UART0.TraBuf[4] = 0x35;     //°æ±¾ºÅ-L
+ 145   2      
+ 146   2          ptr = &UART0.TraBuf[1];
+ 147   2          tmp = LRC16(ptr,4);     //¼ÆËãÍ¨ÐÅµÄLRCÐ£ÑéÂë
+ 148   2      
+ 149   2          UART0.TraBuf[5] = ((tmp & 0xff00)>>8);  //LRC¸ß×Ö½Ú
+ 150   2          UART0.TraBuf[6] = tmp & 0x00ff;     //LRCµÍ×Ö½Ú
+ 151   2      
+ 152   2          UART0.TraBuf[7] = 0x0d;
+ 153   2          UART0.TraBuf[8] = 0x09;
+ 154   2      
+ 155   2          UART0.MasterFlag = 0;
+ 156   2          RS485_TEN();              //ÇÐ»»485Ð¾Æ¬Ä£Ê½Îª ·¢ËÍ
+ 157   2          UART0.TxdCnt = 8;         //ÉèÖÃ·¢ËÍ³¤¶È
+ 158   2          UART0.TranData = &UART0.TraBuf[1];  //³õÊ¼»¯Êý¾Ý·¢ËÍÖ¸Õë
+ 159   2          SBUF0 = UART0.TraBuf[0];      //·¢ËÍµÚÒ»¸öÊý¾Ý
+ 160   2        }
+ 161   1        
+ 162   1        else
+ 163   1        {//LRCÐ£Ñé´íÎó
+ 164   2          for(tmp=0;tmp<10;tmp++)
+ 165   2          {
+ 166   3            UART0.RevBuf[tmp] = 0;  //Çé¿öÍ¨ÐÅ½ÓÊÕ»º³åÇø
+ 167   3          }
+ 168   2          RS485_REN();    // ÇÐ»»Í¨Ñ¶Îª½ÓÊÜÄ£Ê½
+ 169   2        } 
+ 170   1      }
+ 171          /*******************************V2.15Ôö¼Ó²¿·Ö(ÒÔÉÏ)**********************************/
+ 172          
+ 173          //¼ìÑélock×´Ì¬´Ó»úµÄ·µ»ØÐÅÏ¢
+ 174          uchar lock_return(void)
+ 175          {
+ 176   1        uchar i;
+ 177   1      
+ 178   1        for(i=0;i<10;i++)
+C51 COMPILER V9.52.0.0   UART                                                              10/10/2016 16:43:43 PAGE 4   
+
+ 179   1        {
+ 180   2          if (UART0.RevBuf[i] == UART0.TraBuf[i])
+ 181   2          {
+ 182   3            ;
+ 183   3          }
+ 184   2          else
+ 185   2          {
+ 186   3            i = 0;
+ 187   3            break;
+ 188   3          }
+ 189   2        }
+ 190   1      
+ 191   1        return i;
+ 192   1      }
+ 193          
+ 194          //¼ìÑébutton×´Ì¬´Ó»úµÄ·µ»ØÐÅÏ¢
+ 195          uchar button_return(void)
+ 196          {
+ 197   1        uchar i;
+ 198   1      
+ 199   1        for(i=0;i<9;i++)
+ 200   1        {
+ 201   2          if (UART0.RevBuf[i] == UART0.TraBuf[i])
+ 202   2          {
+ 203   3            ;
+ 204   3          }
+ 205   2          else
+ 206   2          {
+ 207   3            i = 0;
+ 208   3            break;
+ 209   3          }
+ 210   2        }
+ 211   1      
+ 212   1        return i;
+ 213   1      }
+ 214          
+ 215          //Ö÷¶¯·¢ËÍLOCK×´Ì¬ºÍ°´¼ü×´Ì¬
+ 216          void master_transmit(void)
+ 217          {
+ 218   1        uchar *ptr;
+ 219   1        uint tmp;
+ 220   1        uchar i;
+ 221   1      
+ 222   1        if ( (UART0.LockState[0] != 0) && (UART0.MasterFlag == 1) &&(State_Trans_Cnt != 3) )    //Ôö¼Ó¼ì²â·¢ËÍ´ÎÊýÅ
+             -Ð¶Ï
+ 223   1        {//LOCK×´Ì¬·¢ËÍ
+ 224   2          State_Trans_Cnt++;    //Ôö¼Ó¼ì²â·¢ËÍ´ÎÊý
+ 225   2      
+ 226   2          UART0.TraBuf[0] = 0x40;     //Ê××Ö½Ú
+ 227   2          UART0.TraBuf[1] = 0x53;   //ÃüÁî×Ö'S'
+ 228   2          UART0.TraBuf[2] = 0x31;   //SLAVE_ID = 1
+ 229   2      
+ 230   2          UART0.TraBuf[3] = AsciiCode[ (UART0.LockState[0] & 0x70) >> 4 ];      //LOCK±àºÅ-H
+ 231   2          UART0.TraBuf[4] = AsciiCode[ (UART0.LockState[0] & 0x0f)      ];      //LOCK±àºÅ-L
+ 232   2          if(UART0.LockState[0] & 0x80)
+ 233   2          {//¹ñÃÅ´ò¿ª
+ 234   3            UART0.TraBuf[5] = 0x31;     //LOCK×´Ì¬  1=´ò¿ª 0=¹Ø±Õ
+ 235   3          }
+ 236   2          else
+ 237   2          {//¹ñÃÅ¹Ø±Õ
+ 238   3            UART0.TraBuf[5] = 0x30;     //LOCK×´Ì¬  1=´ò¿ª 0=¹Ø±Õ
+ 239   3          }
+C51 COMPILER V9.52.0.0   UART                                                              10/10/2016 16:43:43 PAGE 5   
+
+ 240   2      
+ 241   2          ptr = &UART0.TraBuf[1];
+ 242   2          tmp = LRC16(ptr,5);     //¼ÆËãÍ¨ÐÅµÄLRCÐ£ÑéÂë
+ 243   2      
+ 244   2          UART0.TraBuf[6] = ((tmp & 0xff00)>>8);  //LRC¸ß×Ö½Ú
+ 245   2          UART0.TraBuf[7] = tmp & 0x00ff;         //LRCµÍ×Ö½Ú
+ 246   2      
+ 247   2          UART0.TraBuf[8] = 0x0d;
+ 248   2          UART0.TraBuf[9] = 0x09;
+ 249   2      
+ 250   2          UART0.MasterFlag = 0;
+ 251   2          RS485_TEN();              //ÇÐ»»485Ð¾Æ¬Ä£Ê½Îª ·¢ËÍ
+ 252   2          UART0.TxdCnt = 9;         //ÉèÖÃ·¢ËÍ³¤¶È
+ 253   2          UART0.TranData = &UART0.TraBuf[1];  //³õÊ¼»¯Êý¾Ý·¢ËÍÖ¸Õë
+ 254   2          SBUF0 = UART0.TraBuf[0];      //·¢ËÍµÚÒ»¸öÊý¾Ý
+ 255   2      
+ 256   2        }
+ 257   1        else if ( (UART0.ButtonState[0] != 0) && (UART0.MasterFlag == 1) &&(State_Trans_Cnt != 3) )  //Ôö¼Ó¼ì²â·¢
+             -ËÍ´ÎÊýÅÐ¶Ï
+ 258   1        {//BUTTON×´Ì¬·¢ËÍ
+ 259   2           State_Trans_Cnt++;    //Ôö¼Ó¼ì²â·¢ËÍ´ÎÊý
+ 260   2          
+ 261   2          UART0.TraBuf[0] = 0x40;     //Ê××Ö½Ú
+ 262   2          UART0.TraBuf[1] = 0x54;   //ÃüÁî×Ö'S'
+ 263   2          UART0.TraBuf[2] = 0x31;   //SLAVE_ID = 1
+ 264   2      
+ 265   2          UART0.TraBuf[3] = AsciiCode[ (UART0.ButtonState[0] & 0xf0) >> 4 ];      //BUTTON±àºÅ-H
+ 266   2          UART0.TraBuf[4] = AsciiCode[ (UART0.ButtonState[0] & 0x0f)      ];      //BUTTON±àºÅ-L
+ 267   2      
+ 268   2          ptr = &UART0.TraBuf[1];
+ 269   2          tmp = LRC16(ptr,4);     //¼ÆËãÍ¨ÐÅµÄLRCÐ£ÑéÂë
+ 270   2      
+ 271   2          UART0.TraBuf[5] = ((tmp & 0xff00)>>8);  //LRC¸ß×Ö½Ú
+ 272   2          UART0.TraBuf[6] = tmp & 0x00ff;     //LRCµÍ×Ö½Ú
+ 273   2      
+ 274   2          UART0.TraBuf[7] = 0x0d;
+ 275   2          UART0.TraBuf[8] = 0x09;
+ 276   2      
+ 277   2          UART0.MasterFlag = 0;
+ 278   2          RS485_TEN();              //ÇÐ»»485Ð¾Æ¬Ä£Ê½Îª ·¢ËÍ
+ 279   2          UART0.TxdCnt = 8;         //ÉèÖÃ·¢ËÍ³¤¶È
+ 280   2          UART0.TranData = &UART0.TraBuf[1];  //³õÊ¼»¯Êý¾Ý·¢ËÍÖ¸Õë
+ 281   2          SBUF0 = UART0.TraBuf[0];      //·¢ËÍµÚÒ»¸öÊý¾Ý
+ 282   2        }
+ 283   1        
+ 284   1      //**************Ôö¼ÓÉÏÎ»»ú·¢ËÍ¿ªÃÅÖ¸Áî,ÏÂÎ»»úÔÚÖ´ÐÐÍê¶¯×÷ºóÏòÉÏÎ»»ú·¢ËÍµç´ÅËø×´Ì¬Ö¸Áî************/
+ 285   1      //  else if ( (Return_Lock_ID) && (Return_Lock_State_Cnt != 3) && (UART0.MasterFlag == 1))
+ 286   1      //  {
+ 287   1      //    UART0.MasterFlag = 0;
+ 288   1      //    Return_Lock_State_Cnt++;
+ 289   1      //    UART0.TraBuf[0] = 0x40;     //Ê××Ö½Ú
+ 290   1      //    UART0.TraBuf[1] = 0x53;   //ÃüÁî×Ö'S'
+ 291   1      //    UART0.TraBuf[2] = 0x31;   //SLAVE_ID = 1
+ 292   1      
+ 293   1      //    UART0.TraBuf[3] = AsciiCode[ (Return_Lock_ID & 0x70) >> 4 ];      //LOCK±àºÅ-H
+ 294   1      //    UART0.TraBuf[4] = AsciiCode[ (Return_Lock_ID & 0x0f)      ];      //LOCK±àºÅ-L
+ 295   1      //    if(Return_Lock_State)
+ 296   1      //    {//¹ñÃÅ´ò¿ª
+ 297   1      //      UART0.TraBuf[5] = 0x31;     //LOCK×´Ì¬  1=´ò¿ª 0=¹Ø±Õ
+ 298   1      //    }
+ 299   1      //    else
+ 300   1      //    {//¹ñÃÅ¹Ø±Õ
+C51 COMPILER V9.52.0.0   UART                                                              10/10/2016 16:43:43 PAGE 6   
+
+ 301   1      //      UART0.TraBuf[5] = 0x30;     //LOCK×´Ì¬  1=´ò¿ª 0=¹Ø±Õ
+ 302   1      //    }
+ 303   1      
+ 304   1      //    ptr = &UART0.TraBuf[1];
+ 305   1      //    tmp = LRC16(ptr,5);     //¼ÆËãÍ¨ÐÅµÄLRCÐ£ÑéÂë
+ 306   1      
+ 307   1      //    UART0.TraBuf[6] = ((tmp & 0xff00)>>8);  //LRC¸ß×Ö½Ú
+ 308   1      //    UART0.TraBuf[7] = tmp & 0x00ff;     //LRCµÍ×Ö½Ú
+ 309   1      
+ 310   1      //    UART0.TraBuf[8] = 0x0d;
+ 311   1      //    UART0.TraBuf[9] = 0x09;
+ 312   1      
+ 313   1      //    UART0.MasterFlag = 0;
+ 314   1      //    RS485_TEN();              //ÇÐ»»485Ð¾Æ¬Ä£Ê½Îª ·¢ËÍ
+ 315   1      //    UART0.TxdCnt = 9;         //ÉèÖÃ·¢ËÍ³¤¶È
+ 316   1      //    UART0.TranData = &UART0.TraBuf[1];  //³õÊ¼»¯Êý¾Ý·¢ËÍÖ¸Õë
+ 317   1      //    SBUF0 = UART0.TraBuf[0];      //·¢ËÍµÚÒ»¸öÊý¾Ý
+ 318   1      //  }
+ 319   1      /*************************************************/     
+ 320   1        else if ( (State_Trans_Cnt == 3) && (UART0.MasterFlag == 1) )
+ 321   1        {//Ö÷¶¯·¢ËÍ6´ÎÉÏÎ»»úÎÞÏìÓ¦  ¾ÍµÈ´ýÉÏÎ»»ú·¢ËÍÖ¸Áî
+ 322   2          UART0.MasterFlag = 0;   
+ 323   2          TR2 = 0;                //¶¨Ê±Æ÷2½ûÖ¹¹¤×÷
+ 324   2          UART0.MasterBusy = 0;   //Çå³ýÖ÷¶¯·¢ËÍÃ¦±êÊ¶
+ 325   2          State_Trans_Cnt  = 0;
+ 326   2      //    Timer2Value       = 0;
+ 327   2      //    UART0.Master_Tran_Timer = 150;    //Éè¶¨Í¨ÐÅ·µ»ØÊ±¼äÎª75ms
+ 328   2      
+ 329   2          for(i=0;i<10;i++)
+ 330   2          {
+ 331   3            UART0.RevBuf[i] = 0;  //Çé¿öÍ¨ÐÅ»º³åÇø
+ 332   3          }
+ 333   2          RS485_REN();    // ÇÐ»»Í¨Ñ¶Îª½ÓÊÜÄ£Ê½
+ 334   2      
+ 335   2        }
+ 336   1        else
+ 337   1        {
+ 338   2          TR2 = 0;                //¶¨Ê±Æ÷2½ûÖ¹¹¤×÷
+ 339   2          UART0.MasterFlag = 0;
+ 340   2          UART0.MasterBusy = 0;   //Çå³ýÖ÷¶¯·¢ËÍÃ¦±êÊ¶
+ 341   2        }
+ 342   1      }
+ 343          
+ 344          //Í¨ÐÅ´¦Àí³ÌÐò ´¦Àí--410×÷Îª´Ó»úÍ¨ÐÅºÍ×÷ÎªÖ÷»úÍ¨ÐÅ
+ 345          void Communication_Respone(void)
+ 346          {
+ 347   1        uchar i;
+ 348   1      
+ 349   1        if (UART0.RevFlag)          //UART0.RevFlag£ºÍ¨Ñ¶ÏìÓ¦ ×÷Îª´Ó»úµÄÍ¨ÐÅ´¦Àí±êÊ¶
+ 350   1        {//´®¿Ú½ÓÊÕÉÏÎ»»úÍ¨ÐÅ´¦Àí
+ 351   2          if (Slave_ID == 1)        //Slave_ID: HexCode[UART0.RevBuf[2]]     //Í¨ÐÅÐ­Òé ´Ó»úµØÖ·
+ 352   2          {//´Ó»úµØÖ·ÕýÈ·
+ 353   3            switch(UART0.RevBuf[1])
+ 354   3            {//¹¦ÄÜÂë
+ 355   4              case 0x41://'A'Ê¹ÄÜµç´Å·§
+ 356   4                  enable_lock();  
+ 357   4      //            Return_Lock_ID = UART0.LOCK_ID;          //µ±Ç°µç´Å·§µÄ±àºÅ = Í¨ÐÅÒªÇó´ò¿ªµÄµç´Å·§±àºÅ
+ 358   4      //            if (0 == (UART0.LOCK_ID % 8))            //Èç¹ûµç´ÅËø±àºÅÎª8µÄ±¶Êý
+ 359   4      //            {
+ 360   4      //              Return_Lock_State = (LOCK_STATE[(UART0.LOCK_ID-1)/8]) & 0x01;    //·´À¡µÄµ±Ç°µç´Å·§×´Ì¬
+ 361   4      //            }
+ 362   4      //            else
+C51 COMPILER V9.52.0.0   UART                                                              10/10/2016 16:43:43 PAGE 7   
+
+ 363   4      //            {
+ 364   4      //              Return_Lock_State = (LOCK_STATE[(UART0.LOCK_ID-1)/8] >> ( (8-UART0.LOCK_ID) % 8)) & 0x01; 
+ 365   4      //            }
+ 366   4                  break;
+ 367   4              case 0x42://'B'Ê¹ÄÜLED
+ 368   4                  enable_led();   
+ 369   4                  break;
+ 370   4              case 0x56://'V'ÏÔÊ¾°æ±¾ºÅ
+ 371   4                  show_version();
+ 372   4                  break;
+ 373   4              case 0x53://'S' Ö÷»úÄ£Ê½lockÍ¨ÐÅ·´À¡
+ 374   4                  if ( lock_return())
+ 375   4                  {//Ð£ÑéOK
+ 376   5                    State_Trans_Cnt = 0;  //Çå³ý·¢ËÍ¼ÆÊý
+ 377   5                    Return_Lock_ID  = 0;
+ 378   5      //              Return_Lock_State_Cnt = 0;
+ 379   5                    TR2 = 0;
+ 380   5                    UART0.MasterBusy = 0;   //Çå³ýÖ÷¶¯·¢ËÍÃ¦±êÊ¶
+ 381   5                    RS485_REN();    // ÇÐ»»Í¨Ñ¶Îª½ÓÊÜÄ£Ê½
+ 382   5        
+ 383   5                    //×´Ì¬Êý×é¸üÐÂ              
+ 384   5                    UART0.LockState[0] = UART0.LockState[1];
+ 385   5                    UART0.LockState[1] = UART0.LockState[2];
+ 386   5                    UART0.LockState[2] = UART0.LockState[3];
+ 387   5                    UART0.LockState[3] = UART0.LockState[4];
+ 388   5                    UART0.LockState[4] = 0;
+ 389   5                  }
+ 390   4                  else
+ 391   4                  {//Ð£ÑéÊ§°Ü ÖØÐÂ·¢ËÍ
+ 392   5      
+ 393   5                  }                 
+ 394   4                  for(i=0;i<10;i++)
+ 395   4                  {
+ 396   5                    UART0.RevBuf[i] = 0;  //Çé¿öÍ¨ÐÅ»º³åÇø
+ 397   5                  }
+ 398   4                  break;
+ 399   4              case 0x54://'T' Ö÷»úÄ£Ê½buttonÍ¨ÐÅ·´À¡
+ 400   4                  if ( button_return())
+ 401   4                  {//Ð£ÑéOK
+ 402   5                    //¹Ø±ÕTR2
+ 403   5                    //×´Ì¬Êý×é¸üÐÂ
+ 404   5                    State_Trans_Cnt = 0;  //Çå³ý·¢ËÍ¼ÆÊý
+ 405   5                    UART0.MasterBusy = 0;   //Çå³ýÖ÷¶¯·¢ËÍÃ¦±êÊ¶
+ 406   5                    TR2 = 0;
+ 407   5                    RS485_REN();    // ÇÐ»»Í¨Ñ¶Îª½ÓÊÜÄ£Ê½
+ 408   5      
+ 409   5                    UART0.ButtonState[0] = UART0.ButtonState[1];
+ 410   5                    UART0.ButtonState[1] = UART0.ButtonState[2];
+ 411   5                    UART0.ButtonState[2] = UART0.ButtonState[3];
+ 412   5                    UART0.ButtonState[3] = UART0.ButtonState[4];
+ 413   5                    UART0.ButtonState[4] = 0;
+ 414   5                  }
+ 415   4                  else
+ 416   4                  {//Ð£ÑéÊ§°Ü ÖØÐÂ·¢ËÍ
+ 417   5      
+ 418   5                  }     
+ 419   4      
+ 420   4                  for(i=0;i<10;i++)
+ 421   4                  {
+ 422   5                    UART0.RevBuf[i] = 0;  //Çé¿öÍ¨ÐÅ»º³åÇø
+ 423   5                  }
+ 424   4                  break;
+C51 COMPILER V9.52.0.0   UART                                                              10/10/2016 16:43:43 PAGE 8   
+
+ 425   4              default:
+ 426   4                  for(i=0;i<10;i++)
+ 427   4                  {
+ 428   5                    UART0.RevBuf[i] = 0;  //Çé¿öÍ¨ÐÅ»º³åÇø
+ 429   5                  }
+ 430   4                  RS485_REN();    // ÇÐ»»Í¨Ñ¶Îª½ÓÊÜÄ£Ê½
+ 431   4                  break;
+ 432   4            }
+ 433   3          }
+ 434   2          else
+ 435   2          {//´Ó»úµØÖ·´íÎó
+ 436   3            for(i=0;i<10;i++)
+ 437   3            {
+ 438   4              UART0.RevBuf[i] = 0;  //Çé¿öÍ¨ÐÅ»º³åÇø
+ 439   4            }
+ 440   3            RS485_REN();    // ÇÐ»»Í¨Ñ¶Îª½ÓÊÜÄ£Ê½
+ 441   3          } 
+ 442   2          UART0.RevFlag = 0;     //Çå³ý´Ó»úÏìÓ¦³ÌÐò±êÊ¶
+ 443   2        }
+ 444   1        else if ( (UART0.LockState[0] || UART0.ButtonState[0] || (Return_Lock_ID)) && (UART0.MasterBusy == 0) )  
+             - //µ±´æ´¢¸Ä±ä×´Ì¬µÄµç´Å·§±àºÅ »ò µ±´æ´¢¸Ä±ä×´Ì¬µÄ°´¼ü±àºÅ »òµ±Ç°µç´Å·§±àºÅ ÓÐÒ»¸öÎª1
+ 445   1        {//Ö÷¶¯·¢ËÍ×´Ì¬
+ 446   2          UART0.MasterBusy = 1;
+ 447   2          Timer2Value = 0;
+ 448   2          UART0.Master_Tran_Timer = 1;    //1.5ms¶¨Ê±£¬¼ì²éÊ±¼ä·¶Î§ÄÚÊÇ·ñÓÐÍ¨ÐÅ½ÓÊÜ ,Ö÷¶¯·¢ËÍÄ£Ê½¼ÆÊ±Æ÷  ÓÃÓÚ¼ì²éÍ¨Ð
+             -ÅÕ¼ÓÃºÍÖØÐÂ·¢ËÍ¶¨Ê±
+ 449   2          TR2 = 1;      //
+ 450   2        }
+ 451   1        else if (UART0.MasterFlag == 1)
+ 452   1        {//Ö÷¶¯Í¨ÐÅ¿ªÊ¼
+ 453   2          master_transmit();
+ 454   2        }
+ 455   1            
+ 456   1      }
+ 457          
+ 458          //´®¿ÚÖÐ¶Ï
+ 459          void Uart0_Interrupt (void) interrupt 4
+ 460          {
+ 461   1        uchar tmp;
+ 462   1        if (RI0 == 1)                       //½ÓÊÕÊý¾ÝÖÐ¶Ï±êÖ¾Î» = 1
+ 463   1        {//½ÓÊÕÖÐ¶Ï
+ 464   2          RI0 = 0;                           // Clear interrupt flag
+ 465   2          tmp = SBUF0;                      //½«´®ÐÐÊý¾Ý»º³åÆ÷SBUF0ÖÐµÄÖµ¸ø±äÁ¿tmp
+ 466   2          
+ 467   2          switch(tmp)
+ 468   2          {
+ 469   3            case 0x40://Ê××Ö½Ú½ÓÊÜ³õÊ¼»¯
+ 470   3                UART0.RevBuf[0] = tmp;          //½«Ê××Ö½Ú·ÅÈë½ÓÊÕÊý¾Ý»º³åÆ÷µÚ1¸ö×Ö½Ú
+ 471   3                UART0.RxdCnt = 1;               //´®¿Ú½ÓÊÕ×Ö½Ú¸öÊý¼ÆÊýÆ÷£¬½ÓÊÕ¼ÆÊýÆ÷ = 1    
+ 472   3                break;
+ 473   3            case 0x09://½áÊø×Ö
+ 474   3                if (UART0.RevBuf[UART0.RxdCnt-1] == 0x0d)  //½áÊø×ÖµÄµÚ1¸ö×Ö½Ú = 0x0d
+ 475   3                {//½áÊø×ÖÕýÈ·
+ 476   4                  UART0.RevBuf[UART0.RxdCnt] = tmp;
+ 477   4                  UART0.RevFlag = ENABLE;   //´¦ÀíÉÏÎ»»úÍ¨ÐÅ½ÓÊÜ³ÌÐò
+ 478   4                  RS485_TEN();  //  ÇÐ»»Í¨Ñ¶Îª·¢ËÍ×´Ì¬ ¼´£ºÔÚ´¦ÀíÍêµ±Ç°Í¨Ñ¶Ö¡Ö®Ç°£¬½ûÖ¹½ÓÊÜÍ¨Ñ¶Êý¾Ý
+ 479   4                }
+ 480   3                else
+ 481   3                {
+ 482   4                  UART0.RxdCnt = 0;       
+ 483   4                }
+ 484   3                break;
+C51 COMPILER V9.52.0.0   UART                                                              10/10/2016 16:43:43 PAGE 9   
+
+ 485   3            default:
+ 486   3                UART0.RevBuf[UART0.RxdCnt] = tmp;
+ 487   3                UART0.RxdCnt++;
+ 488   3                if(UART0.RxdCnt == UART0_Rxd_Length)      // UART0_Rxd_Length = 10
+ 489   3                {//ÂÒÂë×î´ó½ÓÊÕ³¤¶È 10¸ö×Ö½Ú
+ 490   4                  UART0.RxdCnt = 0;
+ 491   4                }
+ 492   3                break;
+ 493   3          }
+ 494   2          
+ 495   2        }
+ 496   1        
+ 497   1        if (TI0 == 1)                   // Check if transmit flag is set
+ 498   1        {//·¢ËÍÖÐ¶Ï
+ 499   2          TI0 = 0;                      // Clear interrupt flag
+ 500   2          
+ 501   2          if(UART0.TxdCnt)              //´®¿Ú·¢ËÍ×Ö½Ú¸öÊý¼ÆÊýÆ÷
+ 502   2          {
+ 503   3            UART0.TxdCnt--;
+ 504   3            SBUF0 =  *UART0.TranData++; //´®¿ÚÊý¾Ý·¢ËÍÖ¸Õë
+ 505   3          }
+ 506   2          else
+ 507   2          {
+ 508   3            for(tmp=0;tmp<10;tmp++)
+ 509   3            {
+ 510   4              UART0.RevBuf[tmp] = 0;  //Çå¿Õ½ÓÊÕ»º³åÇø
+ 511   4            }
+ 512   3      //      delay(50);      //485Ð¾Æ¬Ä£Ê½×ª»»ÑÓ³Ù
+ 513   3            RS485_REN();    //·¢ËÍÍê±Ï ÇÐ»»Îª½ÓÊÜÄ£Ê½
+ 514   3          }
+ 515   2        
+ 516   2        }
+ 517   1      }
+ 518          
+ 519          //´®¿Ú³õÊ¼»¯
+ 520          void UART0_Init(void)
+ 521          {
+ 522   1         SCON0 = 0x10;                       // SCON0: 8-bit variable bit rate
+ 523   1                                             //        level of STOP bit is ignored
+ 524   1                                             //        RX enabled
+ 525   1                                             //        ninth bits are zeros
+ 526   1                                             //        clear RI0 and TI0 bits
+ 527   1      //   if (SYSCLK/BAUDRATE/2/256 < 1) 
+ 528   1      //   {
+ 529   1      //      TH1 = -(SYSCLK/BAUDRATE/2);
+ 530   1      //      CKCON |=  0x08;                  // T1M = 1; SCA1:0 = xx
+ 531   1      //   } 
+ 532   1      //   else if (SYSCLK/BAUDRATE/2/256 < 4) 
+ 533   1      //   {
+ 534   1      //      TH1 = -(SYSCLK/BAUDRATE/2/4);
+ 535   1      //      CKCON &= ~0x0B;                  // T1M = 0; SCA1:0 = 01
+ 536   1      //      CKCON |=  0x01;
+ 537   1      //   } 
+ 538   1      //   else if (SYSCLK/BAUDRATE/2/256 < 12) 
+ 539   1      //   {
+ 540   1      //      TH1 = -(SYSCLK/BAUDRATE/2/12);
+ 541   1      //      CKCON &= 0xF4;                  // T1M = 0; SCA1:0 = 00
+ 542   1      //   } 
+ 543   1      //   else if (SYSCLK/BAUDRATE/2/256 < 48) 
+ 544   1      //   
+ 545   1      //   {
+ 546   1      //      TH1 = -(SYSCLK/BAUDRATE/2/48);
+C51 COMPILER V9.52.0.0   UART                                                              10/10/2016 16:43:43 PAGE 10  
+
+ 547   1      //      CKCON &= ~0x0B;                  // T1M = 0; SCA1:0 = 10
+ 548   1      //      CKCON |=  0x02;
+ 549   1      //   } else 
+ 550   1      //   {
+ 551   1      //      ;                             // Error.  Unsupported baud rate
+ 552   1      //   }
+ 553   1      //   CKCON = 0x00;                       // Timer0 uses a 1:12 prescaler
+ 554   1      //   TH1 = 0x96;
+ 555   1      //   TL1 = 0x96;                          // init Timer1
+ 556   1         TH1 = 0xCB;
+ 557   1         TL1 = 0xCB;                          // init Timer1
+ 558   1         TMOD &= 0x0f;                      // TMOD: timer 1 in 8-bit autoreload
+ 559   1         TMOD |= 0x20;
+ 560   1         TR1   = 1;                            // START Timer1
+ 561   1         IP   |= 0x10;                         // Make UART high priority
+ 562   1         ES0   = 1;                            // Enable UART0 interrupts
+ 563   1         EA = 1;
+ 564   1      }
+ 565          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   1473    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----      16
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

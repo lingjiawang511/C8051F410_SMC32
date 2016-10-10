@@ -1,0 +1,252 @@
+C51 COMPILER V9.52.0.0   BUTTON                                                            10/10/2016 16:43:43 PAGE 1   
+
+
+C51 COMPILER V9.52.0.0, COMPILATION OF MODULE BUTTON
+OBJECT MODULE PLACED IN button.OBJ
+COMPILER INVOKED BY: C:\Keil\C51\BIN\C51.EXE button.c BROWSE DEBUG OBJECTEXTEND TABS(2)
+
+line level    source
+
+   1          #include <C8051F410.h>                 // SFR declarations
+   2          #include <zyy_declare.h>
+   3          
+   4          //LOCK && BUTTON ×´Ì¬¼ì²é
+   5          void State_input(void)
+   6          {
+   7   1        uchar i,j;
+   8   1      
+   9   1      //°´¼ü×´Ì¬¶ÁÈë
+  10   1      if (Anti_Shake_Flag == 0)
+  11   1      {//·À¶¶Ö®Ç°µÄ¼ì²â  ¼ì²âµ½±ä»¯ÔòÊ¹ÄÜ·À¶¶±êÊ¶
+  12   2        
+  13   2        BUTTON_SL = 0;
+  14   2        delay(5);
+  15   2        BUTTON_SL = 1;
+  16   2        delay(5);
+  17   2      //  Button_SL_RS();   //Ê¹ÄÜSL »ñµÃ°´¼ü×´Ì¬
+  18   2      //  delay(5);
+  19   2        
+  20   2        if (~BUTTON)
+  21   2        {//µÚÒ»¸ö¶Á³öµÄÊÇµÚ128ºÅLED
+  22   3          Anti_Shake_Flag = 1;    //½¨Á¢·À¶¶¼ì²â±êÊ¶
+  23   3          Anti_Shake_Timer = Timer0Value + 4; //·À¶¶Ê±¼ä 75ms-100ms
+  24   3        }
+  25   2      
+  26   2      
+  27   2        for(i=127;i>0;i--)
+  28   2        {
+  29   3          BUTTON_CLK = 0;
+  30   3          delay(5);
+  31   3          BUTTON_CLK = 1;
+  32   3          delay(5);
+  33   3      //    Button_CLK_RS();  //¶ÁÈ¡°´¼üÊäÈë
+  34   3      
+  35   3          if (~BUTTON)
+  36   3          {//°´¼ü±»°´ÏÂÔòÏ¨Ãð¶ÔÓ¦±àºÅµÄLED
+  37   4            Anti_Shake_Flag = 1;    //½¨Á¢·À¶¶¼ì²â±êÊ¶
+  38   4            Anti_Shake_Timer = Timer0Value + 4; //·À¶¶Ê±¼ä 75ms-100ms
+  39   4          }
+  40   3        }
+  41   2      
+  42   2      //¹ñÃÅ×´Ì¬¶ÁÈë
+  43   2        FEEDBACK_SL = 0;
+  44   2        delay(5);
+  45   2        FEEDBACK_SL = 1;
+  46   2        delay(5);
+  47   2      //  Feedback_SL_RS();   //Ê¹ÄÜSL »ñµÃµç´Å·§×´Ì¬
+  48   2      //  delay(5);
+  49   2        
+  50   2        if ( LOCK_FEEDBACK != (~LOCK_STATE[4] & 0x1) )
+  51   2        {//µÚÒ»¸ö¶Á³öµÄÊÇµÚ40ºÅµç´Å·§
+  52   3            Anti_Shake_Flag = 1;    //½¨Á¢·À¶¶¼ì²â±êÊ¶
+  53   3            Anti_Shake_Timer = Timer0Value + 80;  //·À¶¶Ê±¼ä 2s
+  54   3        }
+  55   2      
+C51 COMPILER V9.52.0.0   BUTTON                                                            10/10/2016 16:43:43 PAGE 2   
+
+  56   2        for(i=39;i>0;i--)
+  57   2        {
+  58   3          FEEDBACK_CLK = 0;
+  59   3          delay(5);
+  60   3          FEEDBACK_CLK = 1;
+  61   3          delay(5);
+  62   3      //    Feedban_CLK_RS(); //¶ÁÈ¡°´¼üÊäÈë
+  63   3      
+  64   3          if (0 == (i%8))
+  65   3          {
+  66   4            if (LOCK_FEEDBACK != ((~LOCK_STATE[(i-1)/8]) & 0x01) )
+  67   4            {//¸Ä±äÁË×´Ì¬µÄµç´Å·§±àºÅ
+  68   5                Anti_Shake_Flag = 1;    //½¨Á¢·À¶¶¼ì²â±êÊ¶
+  69   5                Anti_Shake_Timer = Timer0Value + 80;  //·À¶¶Ê±¼ä 2s
+  70   5            }
+  71   4          }
+  72   3          else
+  73   3          {
+  74   4            if (LOCK_FEEDBACK != ((~LOCK_STATE[(i-1)/8] >> (8-i%8)) & 0x01) )
+  75   4            {//¸Ä±äÁË×´Ì¬µÄµç´Å·§±àºÅ
+  76   5                Anti_Shake_Flag = 1;    //½¨Á¢·À¶¶¼ì²â±êÊ¶
+  77   5                Anti_Shake_Timer = Timer0Value + 80;  //·À¶¶Ê±¼ä 2s
+  78   5            }
+  79   4          }
+  80   3        }
+  81   2      }
+  82   1      else
+  83   1      {//·À¶¶¼ì²â  ÓÐ±ä»¯ºó¸üÐÂ±ä»¯Êý×é
+  84   2        if (Anti_Shake_Timer == Timer0Value)
+  85   2        {
+  86   3          Anti_Shake_Flag = 0;    //Çå³ý·À¶¶¼ì²â±êÊ¶
+  87   3      
+  88   3          BUTTON_SL = 0;
+  89   3          delay(5);
+  90   3          BUTTON_SL = 1;
+  91   3          delay(5);
+  92   3      //    Button_SL_RS();   //Ê¹ÄÜSL »ñµÃ°´¼ü×´Ì¬
+  93   3      //    delay(5);
+  94   3          
+  95   3          if (~BUTTON)
+  96   3          {//µÚÒ»¸ö¶Á³öµÄÊÇµÚ128ºÅLED
+  97   4            for(i=0;(i<i+UART0.ButtonState[i] && i<5);i++);  //´æ´¢°´¼ü±àºÅ
+  98   4            if (i < 5)
+  99   4            {
+ 100   5              UART0.ButtonState[i] = 128;
+ 101   5            }
+ 102   4          }
+ 103   3        
+ 104   3        
+ 105   3          for(i=127;i>0;i--)
+ 106   3          {
+ 107   4            BUTTON_CLK = 0;
+ 108   4            delay(5);
+ 109   4            BUTTON_CLK = 1;
+ 110   4            delay(5);
+ 111   4      //      Button_CLK_RS();  //¶ÁÈ¡°´¼üÊäÈë
+ 112   4        
+ 113   4            if (~BUTTON)
+ 114   4            {//°´¼ü±»°´ÏÂÔòÏ¨Ãð¶ÔÓ¦±àºÅµÄLED
+ 115   5              for(j=0;(j<j+UART0.ButtonState[j] && j<5);j++);
+ 116   5              if (j < 5)
+ 117   5              {
+C51 COMPILER V9.52.0.0   BUTTON                                                            10/10/2016 16:43:43 PAGE 3   
+
+ 118   6                UART0.ButtonState[j] = i;
+ 119   6              }
+ 120   5              else
+ 121   5              {
+ 122   6                break;
+ 123   6              }
+ 124   5            }
+ 125   4          }
+ 126   3        
+ 127   3        //¹ñÃÅ×´Ì¬¶ÁÈë
+ 128   3          FEEDBACK_SL = 0;
+ 129   3          delay(5);
+ 130   3          FEEDBACK_SL = 1;
+ 131   3          delay(5);
+ 132   3      //    Feedback_SL_RS();   //Ê¹ÄÜSL »ñµÃµç´Å·§×´Ì¬
+ 133   3      //    delay(5);
+ 134   3          
+ 135   3          if ( LOCK_FEEDBACK != (~LOCK_STATE[4] & 0x1) )
+ 136   3          {//µÚÒ»¸ö¶Á³öµÄÊÇµÚ40ºÅµç´Å·§
+ 137   4        //    UART0.LOCK_State_Num = 40;
+ 138   4            for(i=0;(i<i+UART0.LockState[i] && i<5);i++);  //´æ´¢ LOCK ±àºÅºÍ×´Ì¬
+ 139   4            if (i < 5)
+ 140   4            {
+ 141   5              if(LOCK_FEEDBACK)
+ 142   5              {//LOCK¹Ø±Õ
+ 143   6                UART0.LockState[i] = 40;
+ 144   6                LOCK_STATE[4] &= ~0x01; //¸üÐÂµç´Å·§×´Ì¬
+ 145   6              }
+ 146   5              else
+ 147   5              {//LOCK´ò¿ª
+ 148   6                UART0.LockState[i] = 0x80 | 40;
+ 149   6                LOCK_STATE[4] |= 0x01; //¸üÐÂµç´Å·§×´Ì¬
+ 150   6              }       
+ 151   5            }
+ 152   4        
+ 153   4          }
+ 154   3        
+ 155   3          for(i=39;i>0;i--)
+ 156   3          {
+ 157   4            FEEDBACK_CLK = 0;
+ 158   4            delay(5);
+ 159   4            FEEDBACK_CLK = 1;
+ 160   4            delay(5);
+ 161   4      //      Feedban_CLK_RS(); //¶ÁÈ¡°´¼üÊäÈë
+ 162   4        
+ 163   4            if (0 == (i%8))
+ 164   4            {
+ 165   5              if (LOCK_FEEDBACK != ((~LOCK_STATE[(i-1)/8]) & 0x01) )
+ 166   5              {//¸Ä±äÁË×´Ì¬µÄµç´Å·§±àºÅ
+ 167   6        //          UART0.LOCK_State_Num = i; 
+ 168   6                for(j=0;(j<j+UART0.LockState[j] && j<5);j++);  //´æ´¢ LOCK ±àºÅºÍ×´Ì¬
+ 169   6                if (j < 5)
+ 170   6                {
+ 171   7                  if(LOCK_FEEDBACK)
+ 172   7                  {//LOCK¹Ø±Õ
+ 173   8                    UART0.LockState[j] = i;
+ 174   8                    LOCK_STATE[(i-1)/8] &= 0xfe; //¸üÐÂµç´Å·§×´Ì
+ 175   8                  }
+ 176   7                  else
+ 177   7                  {//LOCK´ò¿ª
+ 178   8                    UART0.LockState[j] = 0x80 | i;
+ 179   8                    LOCK_STATE[(i-1)/8] |= 1; //¸üÐÂµç´Å·§×´Ì
+C51 COMPILER V9.52.0.0   BUTTON                                                            10/10/2016 16:43:43 PAGE 4   
+
+ 180   8                  }
+ 181   7                }
+ 182   6                else
+ 183   6                {
+ 184   7                  break;
+ 185   7                }
+ 186   6        
+ 187   6              }
+ 188   5            }
+ 189   4            else
+ 190   4            {
+ 191   5              if (LOCK_FEEDBACK != ((~LOCK_STATE[(i-1)/8] >> (8-i%8)) & 0x01) )
+ 192   5              {//¸Ä±äÁË×´Ì¬µÄµç´Å·§±àºÅ
+ 193   6        //          UART0.LOCK_State_Num = i; 
+ 194   6                for(j=0;(j<j+UART0.LockState[j] && j<5);j++);  //´æ´¢ LOCK ±àºÅºÍ×´Ì¬
+ 195   6                if (j < 5)
+ 196   6                {
+ 197   7                  if(LOCK_FEEDBACK)
+ 198   7                  {//LOCK¹Ø±Õ
+ 199   8                    UART0.LockState[j] = i;
+ 200   8                    LOCK_STATE[(i-1)/8] &= ~(1 << (8-i%8)); //¸üÐÂµç´Å·§×´Ì¬
+ 201   8                  }
+ 202   7                  else
+ 203   7                  {//LOCK´ò¿ª
+ 204   8                    UART0.LockState[j] = 0x80 | i;
+ 205   8                    LOCK_STATE[(i-1)/8] |= 1 << (8-i%8); //¸üÐÂµç´Å·§×´Ì¬
+ 206   8                  }
+ 207   7                }
+ 208   6                else
+ 209   6                {
+ 210   7                  break;
+ 211   7                }
+ 212   6        
+ 213   6              }
+ 214   5            }
+ 215   4          }
+ 216   3      
+ 217   3      
+ 218   3        }
+ 219   2      }
+ 220   1      
+ 221   1      }
+ 222          
+ 223          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    934    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----       2
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

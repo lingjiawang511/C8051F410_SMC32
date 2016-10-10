@@ -1,0 +1,10 @@
+"STARTUP.obj",
+"main.obj",
+"lock.obj",
+"timer0.obj",
+"led.obj",
+"uart.obj",
+"button.obj",
+"variable_init.obj" 
+TO "C8051F410" 
+RAMSIZE(256) 
